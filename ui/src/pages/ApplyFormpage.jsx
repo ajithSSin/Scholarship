@@ -1,14 +1,18 @@
 import React, { useState,useEffect } from 'react'
 import Header from '../components/Header';
 import ButtonBack from '../components/ButtonBack';
-// import Application from '../components/Application'
-// import Metamask from '../components/Metamask'
-
 
 import scholarship from "../assets/Scholarship.json";
-import {createPublicClient, createWalletClient , custom, http} from "viem";
+
+import {
+        createPublicClient, 
+        createWalletClient , 
+        custom, 
+        http
+    } 
+    from "viem";
 import { hardhat, hoodi } from 'viem/chains';
-import { readContract, writeContract } from 'viem/actions';
+import { writeContract } from 'viem/actions';
 
 const ApplyFormpage = () => {
     const [addr, setAddr] = useState(null);
@@ -16,6 +20,7 @@ const ApplyFormpage = () => {
     //Create public Client for reading only
     const publicClient = createPublicClient({
                                         chain: hardhat,
+                                        // chain:hoodi
                                         transport: http(),   // http://127.0.0.1:8545 by default
                                         // transport:custom(window.ethereum)
                                     });
@@ -48,18 +53,8 @@ const ApplyFormpage = () => {
     const [availableScholarships, setAvailableScholarships] = useState([]);
     const [counter, setCounter] = useState(0);
     const [errors, setErrors] = useState([]);  
-  
-    function handleChange(e) {
-          const { name, value } = e.target;
-          setFormData({
-                      ...formData,
-                      [name]:value,
-                      // [name]: files ? files[0] : value,                   
-                  });
-    }
-    
-    const fetchCounter = async () => {
         
+    const fetchCounter = async () => {        
         try {
             const data = await publicClient.readContract({
                                 address: scholarship.ContractAddress,
@@ -95,25 +90,23 @@ const ApplyFormpage = () => {
             // Loop through all existing scholarships
             for (let i = 1; i <= count; i++) {               
                 
-                const s = await publicClient.readContract({
+                const res = await publicClient.readContract({
                                 address: scholarship.ContractAddress,
                                 abi: scholarship.abi,
                                 functionName: "scholarships",
                                 args: [i],
                             });
                 
-                if(s[7]==true){
+                if(res[7]==true){
                     list.push({
-                        id:Number(s[0]),
-                        name:s[1],
+                        id:Number(res[0]),
+                        name:res[1],
                     })
-                }
-                console.log("scholarship id and title in for loop",list);  
-            }           
+                }                  
+            }    
+            console.log("scholarship id and title in for loop",list);       
 
-            setAvailableScholarships(list);
-
-            // console.log("available Scholarship",availableScholarships);
+            setAvailableScholarships(list);           
             
         } catch (err) {
             console.error("Error loading scholarships:", err);
@@ -121,13 +114,21 @@ const ApplyFormpage = () => {
         }
     };
     
-    useEffect(() => {  
-              
+    useEffect(() => {                
         loadScholarships();
-
         // console.log("Updated scholarships:", availableScholarships);
     }, []);
-    
+
+    // Add form-data
+
+    function handleChange(e) {
+          const { name, value } = e.target;
+          setFormData({
+                      ...formData,
+                      [name]:value,
+                      // [name]: files ? files[0] : value,                   
+                  });
+    }    
     // function validate() {
 
     //     const errs = [];
@@ -171,6 +172,7 @@ const ApplyFormpage = () => {
             console.log("txhash",txhash);            
 
             alert("Application submitted successfully!");
+
         } catch (error) {
             console.error(error);
             setStatus("Error",error.message);                    
@@ -218,10 +220,10 @@ const ApplyFormpage = () => {
                                 </option>
                                 {
                                     availableScholarships.map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                        {s.name} (ID: {s.id})
-                                    </option>
-                                    ))
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} (ID: {s.id})
+                                            </option>
+                                        ))
                                 }
                             </select>
                         </div>

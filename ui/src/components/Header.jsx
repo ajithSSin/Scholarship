@@ -1,10 +1,13 @@
 import React from 'react'
-// import Metamask from './Metamask'
 import ButtonBack from './ButtonBack'
-
+// import { useWallet } from '../context/walletContext.jsx';
 
 const Header = () => {
+
+  // const { loggedInAddress, connectWallet, isAdmin, isApplicant } = useWallet();
+
   return (
+    <>
     <div className="bg-stone-300
                     rounded-lg shadow-lg 
                     p-6 m-6 border">
@@ -13,10 +16,25 @@ const Header = () => {
         </h1>
         <p className="text-gray-600 mt-2">
             Decentralized Scholarship Management on Ethereum
-        </p>
-        
+        </p>       
+    </div>
+    {/* <header className="p-5 bg-white">
+      {!loggedInAddress && (
+        <button onClick={connectWallet}>Connect Wallet</button>
+      )}
 
-    </div>    
+      {loggedInAddress && (
+        <p>
+          Connected: {loggedInAddress.slice(0, 6)}...
+          {loggedInAddress.slice(-4)}
+        </p>
+      )}
+
+      {isAdmin && <p>You are Admin</p>}
+      {isApplicant && <p>You are Applicant</p>}
+    </header> */}
+    </>
+        
   )
 }
 

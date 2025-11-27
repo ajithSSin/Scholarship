@@ -1,15 +1,28 @@
 import { useState , useEffect} from "react";
-import { createWalletClient, custom } from "viem";
+import { 
+          createWalletClient, 
+          createPublicClient,
+          custom ,
+          http
+        } 
+        from "viem";
+
 import { hardhat, hoodi } from "viem/chains";
 import { readContract, writeContract } from "viem/actions";
 
-// import scholarship from "../assets/Scholarship.json";
 import scholarship from "../assets/Scholarship.json"
 import ButtonBack from "../components/ButtonBack";
 import Header from "../components/Header";
 
 const AdminDashboard = () => {
   const [addr, setAddr] = useState(null);
+
+  //Create public Client for reading only
+  const publicClient = createPublicClient({
+                                          chain: hardhat,
+                                          transport: http(),   // http://127.0.0.1:8545 by default
+                                          // transport:custom(window.ethereum)
+                                      });
 
   // Create wallet client
   const client = createWalletClient({
@@ -21,12 +34,10 @@ const AdminDashboard = () => {
 // Connect Metamask
   async function connectWallet() {
 
-    const [address] = await client.requestAddresses();
-    
+    const [address] = await client.requestAddresses();    
     setAddr(address);
     console.log(address);
-    alert("Metamask connected");
-    
+    alert("Metamask connected");    
   }
   
   //form for adding scholarship
@@ -71,59 +82,135 @@ const AdminDashboard = () => {
 
       console.log("Scholarship Added:", txhash);
       alert("Scholarship Added Successfully!");
-}
-  
+}  
 
 /************************************************* */
 //loading Scholarship  
-/************** */
-//    const [items, setItems] = useState([]);
+const [counter, setCounter] = useState(0);
+const [availableScholarships, setAvailableScholarships] = useState([]);
 
-//   useEffect(() => {
+const fetchCounter = async () => {        
+        try {
+            const data = await publicClient.readContract({
+                                address: scholarship.ContractAddress,
+                                abi: scholarship.abi,
+                                functionName: "scholarshipCounter"
+                            });
+            
+                            // return Number(data);
+            const count = Number(data);      
+            setCounter(count);
 
-//   loadScholarships();
-// }, []);
-  
-//   async function loadScholarships() {
-//   const count = await readContract(client, {
-//     address: scholarship.ContractAddress,
-//     abi: scholarship.abi,
-//     functionName: "scholarshipCounter",
-//   });
+            return count;
 
-//   let temp = [];
+        } catch (error) {
+            console.error("Error fetching scholarshipCounter:", error);
+            setErrors(["Failed to fetch"])
+        }
+    };   
+    const loadScholarships = async () => {
+        try {
+            const count = await fetchCounter();  // reuse counter function                      
 
-//   for (let i = 1; i <= Number(count); i++) {
-//     const data = await readContract(client, {
-//       address: scholarship.ContractAddress,
-//       abi: scholarship.abi,
-//       functionName: "scholarships",
-//       args: [i],
-//     });
+            const list = [];
+            // console.log("list in loadScholarship",list);    
 
-//     temp.push({
-//       id: data.id,
-//       title: data.title,
-//       amount: data.amount,
-//       minScore: data.minScore,
-//       totalSeats: data.totalSeats,
-//       requiredAttendance: data.requiredAttendance,
-//       requiredAcademic: data.requiredAcademic,
-//       isActive: data.isActive,
-//       isProcessed: data.isProcessed
-//     });
-//   }
+            console.log("Using contract address:", scholarship.ContractAddress);        
+            
+            // Loop through all existing scholarships
+            for (let i = 1; i <= count; i++) {               
+                
+                const res = await publicClient.readContract({
+                                address: scholarship.ContractAddress,
+                                abi: scholarship.abi,
+                                functionName: "scholarships",
+                                args: [i],
+                            });
+                
+                if(res[7]==true){
+                    list.push({
+                        id:Number(res[0]),
+                        name:res[1],
+                        amt:res[2],
+                        score:res[3],
+                        seat:res[4],
+                        attndReq:res[5],
+                        markReq:res[6],
+                        isActive:res[7],
+                        isProcessed:res[8]
+                    })
+                }                 
+            }    
+            console.log("scholarship details",list);       
 
-//   setItems(temp);
-// }
-
+            setAvailableScholarships(list);  
+            return list;         
+            
+        } catch (err) {
+            console.error("Error loading scholarships:", err);
+            setErrors(["Failed to load scholarships"]);
+        }
+    };
+    
+    useEffect(() => {        
+      // console.log("useEffect");              
+        loadScholarships();
+        // console.log("Updated scholarships:", availableScholarships);
+    }, []);
 //*******************************//
+// loading Applicants
+  const [applicants,setApplicants]=useState([]);  
 
-  // View scholarship
+  const loadApplicant = async () => {
+
+    try {
+      const count =await fetchCounter()
+      console.log("load applicant() Count:",count); //working
+      
+      const list=[];
+      // 
+      
+      for (let i = 1; i <= count; i++) {
+        const res = await publicClient.readContract({
+                                      address:scholarship.ContractAddress,
+                                      abi:scholarship.abi,
+                                      functionName:"scholarshipApplications",//???
+                                      args:[i] 
+                                    });
+        list.push({
+                        // id:Number(res[0]),
+                        name:res[1],
+                        reg:res[2],
+                        // score:res[3],
+                        course:res[4],
+                        attndReq:res[5],
+                        markReq:res[6],
+                        score:res[7],
+                        isReceived:res[8]
+                    })
+                    console.log("list in loop ", list);
+      }
+      setApplicants(list);
+      console.log("applicants list",list)
+      return list;
+
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+
+    loadApplicant();
+
+  }, []);
+
+//************************************ */
+  // View scholarship  
 
   const [schId, setSchId] = useState("");
   const [schDetails, setSchDetails] = useState("");
-  const [applicants, setApplicants] = useState([]); 
+  // const [applicants, setApplicants] = useState([]); 
   
   // const [ID,setID]=useState();
 
@@ -132,8 +219,9 @@ const AdminDashboard = () => {
   //   setID(id);
   // }
 
-  async function viewScholarship() {
 
+  async function viewScholarship() {
+    
     const id = parseInt(schId);
     console.log(id);    
 
@@ -157,7 +245,7 @@ const AdminDashboard = () => {
     loadApplicants(id);
   }
 
-  //For Loading applicats
+  //For Loading applicats --
   
   async function loadApplicants(id) {
 
@@ -308,11 +396,52 @@ const AdminDashboard = () => {
       </div> */}
 
 
-      {/* viewing */}
+      {/* viewing Scholarship details*/}
       <div className="p-5 border rounded-lg m-5">
         <h2 className="font-bold text-xl">View Scholarship</h2>
 
-        <input
+        {
+          availableScholarships.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border rounded-lg overflow-hidden">
+                <thead className="bg-gray-200">
+                  <tr>
+                    <th className="px-4 py-2">Id</th>
+                    <th className="px-4 py-2">Title</th>
+                    <th className="px-4 py-2">Scholarship Amount</th>
+                    <th className="px-4 py-2">Scores Required</th>
+                    <th className="px-4 py-2">Availability</th>
+                    <th className="px-4 py-2">Attendence Required %</th>
+                    <th className="px-4 py-2">Marks Required%</th>
+                    <th className="px-4 py-2">Is Active</th>
+                    <th className="px-4 py-2">Is Processed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {
+                    availableScholarships.map((sch, index) => (
+                      <tr key={index} className="text-center border-t">
+                        <td className="px-4 py-2">{Number(sch.id)}</td>
+                        <td className="px-4 py-2">{sch.name}</td>
+                        <td className="px-4 py-2">{Number(sch.amt)}</td>
+                        <td className="px-4 py-2">{Number(sch.score)}</td>
+                        <td className="px-4 py-2">{Number(sch.seat)}</td>
+                        <td className="px-4 py-2">{Number(sch.attndReq)}</td>
+                        <td className="px-4 py-2">{Number(sch.markReq)}</td>
+
+                        <td className="px-4 py-2">{sch.isActive ? '✅' : '❌'}</td>
+
+                        <td className="px-4 py-2">{sch.isProcessed ? '✅' : '❌'}</td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          ):(<p>No Scholarships added yet.</p>)
+        }
+
+        {/* <input
           className="border p-2 m-2"
           placeholder="Scholarship ID"
           onChange={(e) => setSchId(e.target.value)}
@@ -325,26 +454,68 @@ const AdminDashboard = () => {
           View
         </button>        
 
-        <pre className="bg-gray-100 p-3 mt-3">{schDetails}</pre>
+        <pre className="bg-gray-100 p-3 mt-3">{schDetails}</pre> */}
         
       </div>
 
-      {/* applicant list */}
-      <div className="m-5">
-        <h3 className="font-bold text-lg">Applicants</h3>
+      {/* applicant list */}        
 
-        {applicants.length === 0 && <p>No applicants yet.</p>}
+      <div className="p-5 border rounded-lg m-5">
+        <h3 className="font-bold text-lg">View Applicants</h3>
 
-        {applicants.map((a, i) => (
-          <div key={i} className="border p-2 m-2">
-            <p><b>Address:</b> {a.applicant}</p>
-            <p><b>Name:</b> {a.name}</p>
-            <p><b>Reg No:</b> {a.regNo}</p>
-            <p><b>Mark:</b> {a.mark.toString()}</p>
-            <p><b>Document:</b> {a.docId}</p>
-            <p><b>Received:</b> {a.received ? "Yes" : "No"}</p>
+        {/* {applicants.length === 0 && <p>No applicants yet.</p>} */}
+        {
+          applicants.length.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white border rounded-lg overflow-hidden">
+                <thead className="bg-gray-200">
+                  <tr>
+                      <th className="px-4 py-2">Name</th>
+                      <th className="px-4 py-2">Student Id</th>
+                      <th className="px-4 py-2">Qualification</th>
+                      <th className="px-4 py-2">Attendance %</th>
+                      <th className="px-4 py-2">Marks Scored %</th>      
+                      <th className="px-4 py-2">Maximun Score</th>           
+                      <th className="px-4 py-2">Is Processed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                {
+                  applicants.map((app, index) => (
+
+                    <tr key={index} className="text-center border-t">
+                    
+                      <td className="px-4 py-2">{app.name}</td>                      
+                      <td className="px-4 py-2">{app.reg}</td>
+                      <td className="px-4 py-2">{app.course}</td>
+                      <td className="px-4 py-2">{Number(app.attndReq)}</td>
+                      <td className="px-4 py-2">{Number(app.markReq)}</td>                      
+                      <td className="px-4 py-2">{Number(app.score)}</td>
+
+                      <td className="px-4 py-2">{app.isReceived ? '✅' : '❌'}</td>
+                      
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
           </div>
-        ))}
+        ):(<p>No Applicants applied yet.</p>)
+      }
+
+        {/* {
+          applicants.map((app, i) => (
+            <div key={i} className="border p-2 m-2">
+
+              <p><b>Address:</b> {a.applicant}</p>
+              <p><b>Name:</b> {app.name}</p>
+              <p><b>Reg No:</b> {app.regNo}</p>
+              <p><b>Mark:</b> {app.course.toString()}</p>
+              <p><b>Document:</b> {a.docId}</p>
+              <p><b>Received:</b> {a.received ? "Yes" : "No"}</p>
+            </div>
+        ))
+        } */}
       </div>
 
       {/* selecting, sorting and paying */}
