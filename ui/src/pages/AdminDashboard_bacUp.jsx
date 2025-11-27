@@ -206,7 +206,90 @@ const fetchCounter = async () => {
   }, []);
 
 //************************************ */
+  // View scholarship  
+
+  const [schId, setSchId] = useState("");
+  const [schDetails, setSchDetails] = useState("");
+  // const [applicants, setApplicants] = useState([]); 
   
+  // const [ID,setID]=useState();
+
+  // function getId(){
+  //   const id=document.getElementById('cid').value;
+  //   setID(id);
+  // }
+
+
+  async function viewScholarship() {
+    
+    const id = parseInt(schId);
+    console.log(id);    
+
+    if (isNaN(id)) return alert("Enter valid scholarship ID");
+
+    const details = await readContract(client, {
+                                address: scholarship.ContractAddress,
+                                abi: scholarship.abi,
+                                functionName: "scholarships",
+                                args: [id],
+                              });
+
+    setSchDetails(`ID: ${details[0].id}
+                  Title: ${details[1].title}
+                  Amount: ${details[2].amount}
+                  Availability: ${details[3].availabilty}
+                  Description: ${details[4].description}
+                  Active: ${details[5].isActive}
+                  Processed: ${details[6].isProcessed}`);
+
+    loadApplicants(id);
+  }
+
+  //For Loading applicats --
+  
+  async function loadApplicants(id) {
+
+    const count = await readContract(client, {
+                                      address: scholarship.ContractAddress,
+                                      abi: scholarship.abi,
+                                      functionName: "scholarships",
+                                      args: [id],
+                                    });
+
+    let arr = [];
+
+    for (let i = 0; i < count; i++) {
+      const app = await readContract(client, {
+        address: scholarship.ContractAddress,
+        abi: scholarship.abi,
+        functionName: "scholarshipApplications",
+        args: [id, i],
+      });
+
+      arr.push(app);
+    }
+
+    setApplicants(arr);
+  }
+
+  // Process scholarship sorting , selecting and paying
+  
+  async function processScholarship() {
+    const id = parseInt(schId);
+
+    const tx = await writeContract(client, {
+                                          address: scholarship.ContractAddress,
+                                          abi: scholarship.abi,
+                                          functionName: "processScholarship",
+                                          args: [id],
+                                          value: 0n,
+                                          account: addr,
+                                        });
+
+    console.log("Processed:", tx);
+    alert("Scholarship processed! Funds disbursed.");
+  }
+
   return (
     <>
     <Header/>
@@ -282,7 +365,11 @@ const fetchCounter = async () => {
         />
         <br/>
 
-        
+        {/* <input name="description" 
+                placeholder="Description"
+          className="border p-2 m-2 w-67 w-55 rounded-xl"
+          onChange={handleChange}
+        /><br/> */}
 
         <button
           onClick={addScholarship}
@@ -290,8 +377,25 @@ const fetchCounter = async () => {
         >
           Add Scholarship
         </button>
-      </div>     
-     
+      </div>
+      
+      {/*loading*/}
+      {/* <div>
+        {items.map((item) => (
+  <div key={item.id} className="card">
+    <h3>{item.title}</h3>
+    <p>Amount: {item.amount}</p>
+    <p>Min Score: {item.minScore}</p>
+    <p>Total Seats: {item.totalSeats}</p>
+    <p>Required Attendance: {item.requiredAttendance}%</p>
+    <p>Required Academic Mark: {item.requiredAcademic}%</p>
+    <p>Status: {item.isActive ? "Active" : "Inactive"}</p>
+  </div>
+))}
+
+      </div> */}
+
+
       {/* viewing Scholarship details*/}
       <div className="p-5 border rounded-lg m-5">
         <h2 className="font-bold text-xl">View Scholarship</h2>
@@ -335,7 +439,22 @@ const fetchCounter = async () => {
               </table>
             </div>
           ):(<p>No Scholarships added yet.</p>)
-        }      
+        }
+
+        {/* <input
+          className="border p-2 m-2"
+          placeholder="Scholarship ID"
+          onChange={(e) => setSchId(e.target.value)}
+        />
+
+        <button
+          onClick={viewScholarship}
+          className="bg-blue-400 text-white p-2 rounded"
+        >
+          View
+        </button>        
+
+        <pre className="bg-gray-100 p-3 mt-3">{schDetails}</pre> */}
         
       </div>
 
@@ -347,7 +466,6 @@ const fetchCounter = async () => {
         {/* {applicants.length === 0 && <p>No applicants yet.</p>} */}
         {
           applicants.length.length > 0 ? (
-            
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white border rounded-lg overflow-hidden">
                 <thead className="bg-gray-200">
@@ -379,18 +497,31 @@ const fetchCounter = async () => {
                     </tr>
                   ))
                 }
-                </tbody>
-              </table>
+              </tbody>
+            </table>
+          </div>
+        ):(<p>No Applicants applied yet.</p>)
+      }
+
+        {/* {
+          applicants.map((app, i) => (
+            <div key={i} className="border p-2 m-2">
+
+              <p><b>Address:</b> {a.applicant}</p>
+              <p><b>Name:</b> {app.name}</p>
+              <p><b>Reg No:</b> {app.regNo}</p>
+              <p><b>Mark:</b> {app.course.toString()}</p>
+              <p><b>Document:</b> {a.docId}</p>
+              <p><b>Received:</b> {a.received ? "Yes" : "No"}</p>
             </div>
-          ):(<p>No Applicants applied yet.</p>)
-        }
-       
+        ))
+        } */}
       </div>
 
       {/* selecting, sorting and paying */}
       <div className="m-5">
         <button
-          // onClick={processScholarship}
+          onClick={processScholarship}
           className="bg-purple-600 text-white p-2 rounded"
         >
           Process Scholarship
