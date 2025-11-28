@@ -35,16 +35,16 @@ const AdminDashboard = () => {
 
   //Create public Client for reading only
   const publicClient = createPublicClient({
-                                          // chain: hardhat,
-                                          chain:hoodi,
+                                          chain: hardhat,
+                                          // chain:hoodi,
                                           transport: http(),   // http://127.0.0.1:8545 by default
                                           // transport:custom(window.ethereum)
                                       });
 
   // Create wallet client
   const client = createWalletClient({
-                      // chain: hardhat,
-                      chain:hoodi,
+                      chain: hardhat,
+                      // chain:hoodi,
                       transport: custom(window.ethereum),
                     });
 
@@ -251,7 +251,7 @@ const AdminDashboard = () => {
       return[];
     }
   }; 
-//************************************ */
+//*******************************************************/
 // Processing  Scholarship (Selection and Disbursement)
 //check function for scholarship 1-active or not;
                                 //2-alreadry processed or not
@@ -640,16 +640,6 @@ const AdminDashboard = () => {
           ):(<p>No Applicants applied yet.</p>)
         }       
       </div>
-
-      {/* Depositing, fetching Id , Selecting, Sorting and Processing */}
-      {/* <div className="m-5">
-        <button
-          // onClick={processScholarship}
-          className="bg-purple-600 text-white p-2 rounded"
-        >
-          Process Scholarship
-        </button>
-      </div> */}
       <div className="bg-white p-6 border border-gray-200 
                       rounded-xl shadow-lg mb-8 mx-8">
         <h2 className="font-bold text-2xl text-gray-800 mb-4 border-b pb-2">
@@ -658,85 +648,107 @@ const AdminDashboard = () => {
         {/**Deposit Section */}
         <div>
           <div className="mb-6 p-4 border rounded">
+            <h3 className="font-semibold text-lg mb-2">
+              Managing Fund Transfer to Contract
+            </h3>
             <div className="mb-2">Contract balance: 
-                                  {/* <strong>{balance} ETH</strong> */}
+                                  <strong>{balance} ETH</strong>
             </div>
             <div className="flex items-center gap-2">
               <input className="p-2 border rounded" 
-                      // value={depositValue} 
-                      // onChange={(e)=>setDepositValue(e.target.value)} 
+                      value={depositValue} 
+                      onChange={(e)=>setDepositValue(e.target.value)} 
               />
               <button 
-                // onClick={depositToContract} 
-                // disabled={loading} 
-                className="px-3 py-2 rounded bg-green-600 text-white"
+                onClick={depositToContract} 
+                disabled={loading} 
+                className="px-3 py-2 rounded bg-green-600 text-white
+                            hover:bg-green-700 disabled:opacity-50"
               >
                 Deposit to contract
               </button>
             </div>
             <div className="text-sm text-gray-600 mt-2">
-              {/* This sends native ETH to the contract address using the connected wallet. */}
-              Sending eth to the contract usng wallet
+              {/* This sends native ETH to the contract address from wallet. */}
+              Sending eth to the contract from wallet
             </div>
           </div>
         </div>
+
+         {/* Process/View Section */}
         <div>
           <div className="mb-4 p-4 border rounded">
+            <h3 className="font-semibold text-lg mb-2">
+              Manage Scholarship Selection
+            </h3>
             <label className="block mb-2">Scholarship ID</label>
             <input 
-                  // value={scholarshipId} 
-                  // onChange={(e)=>setScholarshipId(e.target.value)} 
+                  value={scholarshipIdToView} 
+                  onChange={(e)=>setScholarshipIdToView(e.target.value)} 
                   className="p-2 border rounded w-24" 
+                  type="number"
+                  disabled={loading}
             />
             <div className="mt-3 flex gap-2">
-              <button 
-                    // onClick={fetchApplications} 
-                    className="px-3 py-2 rounded bg-indigo-600 text-white"
+               <button 
+                    onClick={fetchApplicationsById} 
+                    disabled={loading || !addr}
+                    className="px-3 py-2 rounded bg-indigo-600 text-white 
+                              hover:bg-indigo-700 disabled:opacity-50"
               >
-                Fetch Applications
+                  Fetch Applications (Sort View)
               </button>
               <button 
-                    // onClick={callSelectTopApplicants} 
-                    className="px-3 py-2 rounded bg-red-600 text-white"
+                    onClick={processScholarship} 
+                    disabled={loading || !addr}
+                    className="px-3 py-2 rounded bg-red-600 text-white 
+                              hover:bg-red-700 disabled:opacity-50"
               >
-                      selectTopApplicants (admin)
+                      Process Applicants (Admin)
               </button>
             </div>
           </div>
         </div>
       </div>
-      {/** Application sorted by score */}
+      {/** Application sorted by score (Specific ID View) */}
 
       <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-lg mb-8 mx-8">
-        <h2 className="text-xl font-semibold">Applications (sorted by score)</h2>
+          <h2 className="text-xl font-semibold mb-4 border-b pb-2">
+            Applications for ID {scholarshipIdToView} (Sorted by Score)
+          </h2>
 
-        {/* {loading ? <div>Loading...</div> : ( */}
-
-          <table className="w-full table-auto mt-2 border-collapse">
+        {loading && fetchedApplications.length === 0 ? <div>Loading...</div> : (
+          <table className="w-full table-auto mt-2 border-collapse text-sm">
             <thead>
-              <tr className="text-left border-b">
-                <th className="py-2">#</th>
-                <th>Name</th>
-                <th>Score</th>
-                <th>Received</th>
-                <th>Applicant</th>
+              <tr className="text-left border-b bg-gray-100">
+                <th className="py-2 px-2">Rank</th>
+                <th className="py-2 px-2">Name & College</th>
+                <th className="py-2 px-2">Score</th>
+                <th className="py-2 px-2">Received</th>
+                <th className="py-2 px-2">Applicant Address</th>
               </tr>
             </thead>
             <tbody>
-              {/* {
-              applications.map((a, idx) => (
-                <tr key={idx} className="border-b">
-                  <td className="py-2">{idx+1}</td>
-                  <td>{a.studentName} ({a.college})</td>
-                  <td>{a.score}</td>
-                  <td>{a.received ? 'Yes' : 'No'}</td>
-                  <td className="text-sm">{a.applicant}</td>
-                </tr>
-              ))
-              } */}
+              {
+              fetchedApplications.length > 0 ? (
+                fetchedApplications.map((a, idx) => (
+                  <tr key={idx} className="border-b hover:bg-gray-50">
+                    <td className="py-2 px-2 font-bold">{idx+1}</td>
+                    <td className="py-2 px-2">{a.studentName} ({a.college})</td>
+                    <td className="py-2 px-2 text-center">{a.score}</td>
+                    <td className="py-2 px-2 text-center">{a.received ? '✅' : '❌'}</td>
+                    <td className="py-2 px-2 text-xs">{a.applicant}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="5" className="py-4 text-center text-gray-500">
+                    {scholarshipIdToView ? `No applications found for ID ${scholarshipIdToView}.` : 'Fetch applications using the ID above.'}
+                </td></tr>
+              )
+              }
             </tbody>
           </table>
-        {/* )} */}
+        )}
       </div>      
     </>
   );
