@@ -2,6 +2,8 @@ import React from 'react'
 import {useState} from 'react'
 import Header from '../components/Header'
 import About from '../components/About'
+import AdminDashboard from "./newDashboard.jsx"
+
 
 import {createWalletClient,custom} from "viem";
 
@@ -46,6 +48,7 @@ const HomePage = () => {
     
     <div >
         <Header/>
+        
 
         {/* <Metamask/> */}
 
@@ -90,6 +93,7 @@ const HomePage = () => {
               </button>              
             </Link>          
           </div> 
+          {/* <AdminDashboard/> */}
     </div>
   )
 }

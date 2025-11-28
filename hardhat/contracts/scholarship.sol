@@ -111,8 +111,20 @@ contract scholarship {
         hasApplied[_scholarshipId][msg.sender] = true;
         emit Applied(_scholarshipId, msg.sender, calculatedScore);
     }
+    function getApplicationCount(uint id) 
+                                public view returns (uint) {
+        return scholarshipApplications[id].length;
+    }
 
-    function selectTopApplicants(uint _scholarshipId) external onlyAdmin {
+    function getApplications(uint _scholarshipId) 
+                            external view 
+                            returns (Application[] memory) {
+        return scholarshipApplications[_scholarshipId];
+    }    
+
+    function selectTopApplicants(uint _scholarshipId) 
+                                external onlyAdmin {
+
         Scholarship storage s = scholarships[_scholarshipId];
         require(s.isActive, "Scholarship not active");
         require(!s.isProcessed, "Already processed");
@@ -151,11 +163,7 @@ contract scholarship {
         require(sent, "Transfer failed");
     }
 
-    function getApplications(uint _scholarshipId) 
-                            external view 
-                            returns (Application[] memory) {
-        return scholarshipApplications[_scholarshipId];
-    }
+    
 
     function getSelectedApplicants(uint _scholarshipId) 
                                     external view 

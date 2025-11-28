@@ -1,0 +1,352 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.30;
+
+/// @title Scholarship contract (optimized rewrite)
+/// @notice Admin can create scholarships; students apply; admin selects top applicants and disburses funds.
+/// @dev Avoids bubble-sort; provides pagination & safety features.
+contract ScholarshipManager {
+    address public owner;
+    uint256 public scholarshipCounter;
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    /* ============================
+       Events
+       ============================ */
+    event ScholarshipCreated(uint256 indexed id, string title, uint256 amount);
+    event ScholarshipUpdated(uint256 indexed id);
+    event ScholarshipToggled(uint256 indexed id, bool isActive);
+    event Applied(uint256 indexed scholarshipId, address indexed student, uint8 score, uint256 index);
+    event Disbursed(uint256 indexed scholarshipId, address indexed student, uint256 amount);
+    event Deposited(address indexed from, uint256 amount);
+    event Withdrawn(address indexed to, uint256 amount);
+
+    /* ============================
+       Modifiers
+       ============================ */
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
+        _;
+    }
+
+    modifier scholarshipExists(uint256 _id) {
+        require(_id > 0 && _id <= scholarshipCounter, "Scholarship does not exist");
+        _;
+    }
+
+    /* ============================
+       Reentrancy guard (simple)
+       ============================ */
+    uint256 private _status;
+    modifier nonReentrant() {
+        require(_status != 1, "reentrant");
+        _status = 1;
+        _;
+        _status = 0;
+    }
+
+    /* ============================
+       Structs & storage
+       ============================ */
+    struct Scholarship {
+        uint256 id;
+        string title;
+        uint256 amount;        // wei
+        uint8 minScore;
+        uint8 totalSeats;
+        uint8 requiredAttendance;
+        uint8 requiredAcademic;
+        bool isActive;
+        bool isProcessed;
+    }
+
+    struct Application {
+        address applicant;
+        string studentName;
+        string regNumber;
+        string college;
+        string course;
+        uint8 attendancePercent;
+        uint8 academicMark;
+        uint8 score;
+        bool received;
+    }
+
+    // mappings
+    mapping(uint256 => Scholarship) public scholarships;
+    mapping(uint256 => Application[]) private scholarshipApplications; // internal storage but we expose paginated getters
+    mapping(uint256 => mapping(address => bool)) public hasApplied;
+
+    /* ============================
+       Admin / Owner functions
+       ============================ */
+
+    /// @notice Create a scholarship
+    function addScholarship(
+        string memory _title,
+        uint256 _amount,
+        uint8 _minScore,
+        uint8 _totalSeats,
+        uint8 _requiredAttendance,
+        uint8 _requiredAcademic
+    ) external onlyOwner {
+        require(_amount > 0, "Amount must be > 0");
+        require(_minScore <= 200, "Invalid minScore");
+        require(_totalSeats > 0, "Total seats > 0");
+        require(_requiredAttendance <= 100 && _requiredAcademic <= 100, "Invalid percentage inputs");
+
+        scholarshipCounter++;
+        scholarships[scholarshipCounter] = Scholarship({
+            id: scholarshipCounter,
+            title: _title,
+            amount: _amount,
+            minScore: _minScore,
+            totalSeats: _totalSeats,
+            requiredAttendance: _requiredAttendance,
+            requiredAcademic: _requiredAcademic,
+            isActive: true,
+            isProcessed: false
+        });
+
+        emit ScholarshipCreated(scholarshipCounter, _title, _amount);
+    }
+
+    /// @notice Update editable fields of a scholarship (only owner)
+    function updateScholarship(
+        uint256 _id,
+        string memory _title,
+        uint256 _amount,
+        uint8 _minScore,
+        uint8 _totalSeats,
+        uint8 _requiredAttendance,
+        uint8 _requiredAcademic
+    ) external onlyOwner scholarshipExists(_id) {
+        Scholarship storage s = scholarships[_id];
+        require(!s.isProcessed, "Already processed"); // optional rule
+        s.title = _title;
+        s.amount = _amount;
+        s.minScore = _minScore;
+        s.totalSeats = _totalSeats;
+        s.requiredAttendance = _requiredAttendance;
+        s.requiredAcademic = _requiredAcademic;
+        emit ScholarshipUpdated(_id);
+    }
+
+    /// @notice Activate or deactivate a scholarship
+    function toggleScholarship(uint256 _id, bool _active) external onlyOwner scholarshipExists(_id) {
+        scholarships[_id].isActive = _active;
+        emit ScholarshipToggled(_id, _active);
+    }
+
+    /* ============================
+       Application functions
+       ============================ */
+
+    /// @notice Apply for a scholarship
+    function applyForScholarship(
+        uint256 _scholarshipId,
+        string memory _studentName,
+        string memory _regNumber,
+        string memory _college,
+        string memory _course,
+        uint8 _attendancePercent,
+        uint8 _academicMark
+    ) external scholarshipExists(_scholarshipId) {
+        Scholarship storage s = scholarships[_scholarshipId];
+        require(s.isActive, "Scholarship not active");
+        require(!hasApplied[_scholarshipId][msg.sender], "Already applied");
+        require(_attendancePercent <= 100 && _academicMark <= 100, "Invalid input values");
+        require(_attendancePercent >= s.requiredAttendance, "Attendance below threshold");
+        require(_academicMark >= s.requiredAcademic, "Marks below threshold");
+
+        uint8 calculatedScore = _attendancePercent + _academicMark; // still stays in uint8 range (0..200)
+        scholarshipApplications[_scholarshipId].push(Application({
+            applicant: msg.sender,
+            studentName: _studentName,
+            regNumber: _regNumber,
+            college: _college,
+            course: _course,
+            attendancePercent: _attendancePercent,
+            academicMark: _academicMark,
+            score: calculatedScore,
+            received: false
+        }));
+
+        uint256 index = scholarshipApplications[_scholarshipId].length - 1;
+        hasApplied[_scholarshipId][msg.sender] = true;
+        emit Applied(_scholarshipId, msg.sender, calculatedScore, index);
+    }
+
+    /* ============================
+       Read helpers / Pagination
+       ============================ */
+
+    /// @notice Returns number of applications for a scholarship
+    function getApplicationCount(uint256 _id) external view scholarshipExists(_id) returns (uint256) {
+        return scholarshipApplications[_id].length;
+    }
+
+    /// @notice Returns paginated applications; `start` is inclusive index, `limit` is max items to return
+    function getApplicationsPaginated(uint256 _id, uint256 start, uint256 limit)
+        external
+        view
+        scholarshipExists(_id)
+        returns (Application[] memory)
+    {
+        Application[] storage allApps = scholarshipApplications[_id];
+        uint256 total = allApps.length;
+
+        if (start >= total || limit == 0) {
+            return new Application;
+        }
+
+        // adjust length to return
+        uint256 end = start + limit;
+        if (end > total) end = total;
+        uint256 returnLen = end - start;
+
+        Application[] memory slice = new Application[](returnLen);
+        for (uint256 i = 0; i < returnLen; i++) {
+            slice[i] = allApps[start + i];
+        }
+        return slice;
+    }
+
+    /// @notice Number of selected (disbursed) applicants
+    function getSelectedCount(uint256 _id) external view scholarshipExists(_id) returns (uint256) {
+        Application[] storage allApps = scholarshipApplications[_id];
+        uint256 count = 0;
+        for (uint256 i = 0; i < allApps.length; i++) {
+            if (allApps[i].received) count++;
+        }
+        return count;
+    }
+
+    /// @notice Get selected applicants, paginated (only returns received==true)
+    function getSelectedPaginated(uint256 _id, uint256 start, uint256 limit)
+        external
+        view
+        scholarshipExists(_id)
+        returns (Application[] memory)
+    {
+        Application[] storage allApps = scholarshipApplications[_id];
+        // first compute matching indexes
+        uint256 total = allApps.length;
+        if (limit == 0) return new Application;
+
+        // collect matching into memory up to start + limit
+        Application[] memory tmp = new Application[](total); // upper bound
+        uint256 matched = 0;
+        for (uint256 i = 0; i < total; i++) {
+            if (allApps[i].received) {
+                tmp[matched++] = allApps[i];
+            }
+        }
+
+        if (start >= matched) return new Application;
+
+        uint256 end = start + limit;
+        if (end > matched) end = matched;
+        uint256 outLen = end - start;
+        Application[] memory out = new Application[](outLen);
+        for (uint256 j = 0; j < outLen; j++) {
+            out[j] = tmp[start + j];
+        }
+        return out;
+    }
+
+    /* ============================
+       Selection logic (gas-efficient for small seats)
+       ============================ */
+
+    /// @notice Select top applicants and disburse funds (owner only)
+    /// @dev Algorithm: iterate k times (k = totalSeats) and each time select the highest-score applicant not yet received.
+    function selectTopApplicants(uint256 _scholarshipId) external onlyOwner scholarshipExists(_scholarshipId) nonReentrant {
+        Scholarship storage s = scholarships[_scholarshipId];
+        require(s.isActive, "Scholarship not active");
+        require(!s.isProcessed, "Already processed");
+
+        Application[] storage apps = scholarshipApplications[_scholarshipId];
+        uint256 n = apps.length;
+        require(n > 0, "No applications");
+
+        uint256 seats = s.totalSeats;
+        uint256 selected = 0;
+
+        // seats might be > n; we stop when selected == seats or no remaining qualified applicants
+        for (uint256 iter = 0; iter < seats && selected < n; iter++) {
+            int256 bestIndex = -1;
+            uint8 bestScore = 0;
+
+            // find best among remaining
+            for (uint256 i = 0; i < n; i++) {
+                if (!apps[i].received) {
+                    // check qualification
+                    if (apps[i].score >= s.minScore) {
+                        if (bestIndex == -1 || apps[i].score > bestScore) {
+                            bestIndex = int256(i);
+                            bestScore = apps[i].score;
+                        }
+                    }
+                }
+            }
+
+            if (bestIndex == -1) {
+                // no more qualified applicants
+                break;
+            }
+
+            uint256 idx = uint256(bestIndex);
+            // disburse
+            _disburse(apps[idx].applicant, s.amount);
+            apps[idx].received = true;
+            selected++;
+            emit Disbursed(_scholarshipId, apps[idx].applicant, s.amount);
+        }
+
+        s.isProcessed = true;
+    }
+
+    /* ============================
+       Payments
+       ============================ */
+
+    /// @notice Fund the contract to allow disbursements
+    receive() external payable {
+        emit Deposited(msg.sender, msg.value);
+    }
+
+    /// @notice Owner can withdraw leftover funds
+    function withdraw(uint256 amount) external onlyOwner nonReentrant {
+        require(address(this).balance >= amount, "Insufficient balance");
+        (bool sent, ) = owner.call{value: amount}("");
+        require(sent, "Withdraw failed");
+        emit Withdrawn(owner, amount);
+    }
+
+    /// @dev internal disburse with safety checks
+    function _disburse(address _student, uint256 _amount) internal {
+        require(address(this).balance >= _amount, "Insufficient contract balance");
+        (bool sent, ) = _student.call{value: _amount}("");
+        require(sent, "Transfer failed");
+    }
+
+    /* ============================
+       Utility / View
+       ============================ */
+
+    function isScholarshipActive(uint256 _id) external view scholarshipExists(_id) returns (bool) {
+        return scholarships[_id].isActive;
+    }
+
+    function isScholarshipProcessed(uint256 _id) external view scholarshipExists(_id) returns (bool) {
+        return scholarships[_id].isProcessed;
+    }
+
+    /// @notice Check if a given address applied for a scholarship
+    function hasAddressApplied(uint256 _id, address _addr) external view scholarshipExists(_id) returns (bool) {
+        return hasApplied[_id][_addr];
+    }
+}

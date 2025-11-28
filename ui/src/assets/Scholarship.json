@@ -1,6 +1,6 @@
 {
     "ContractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-   "abi": [
+"abi": [
     {
       "inputs": [],
       "stateMutability": "nonpayable",
@@ -173,6 +173,25 @@
       "name": "applyForScholarship",
       "outputs": [],
       "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        }
+      ],
+      "name": "getApplicationCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
