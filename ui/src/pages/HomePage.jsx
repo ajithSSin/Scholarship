@@ -3,6 +3,7 @@ import {useState} from 'react'
 import Header from '../components/Header'
 import About from '../components/About'
 import AdminDashboard from "./newDashboard.jsx"
+import ScholarshipDapp from './Selection.jsx'
 
 
 import {createWalletClient,custom} from "viem";
@@ -94,6 +95,7 @@ const HomePage = () => {
             </Link>          
           </div> 
           {/* <AdminDashboard/> */}
+          
     </div>
   )
 }

@@ -3,16 +3,19 @@ import {
           createWalletClient, 
           createPublicClient,
           custom ,
-          http
+          http,
+          formatEther,
+          parseEther
         } 
         from "viem";
 
 import { hardhat, hoodi } from "viem/chains";
-import { readContract, writeContract } from "viem/actions";
+import { getBalance, readContract, sendTransaction, waitForTransactionReceipt, writeContract } from "viem/actions";
 
 import scholarship from "../assets/Scholarship.json"
 import ButtonBack from "../components/ButtonBack";
 import Header from "../components/Header";
+import ScholarshipDapp from "./Selection";
 
 const AdminDashboard = () => {
   const [addr, setAddr] = useState(null);
@@ -21,30 +24,48 @@ const AdminDashboard = () => {
   const [availableScholarships, setAvailableScholarships] = useState([]);
   const [allApplicants,setAllApplicants]=useState([]);
 
+  // --- NEW STATE ADDITIONS ---
+  const [balance, setBalance] = useState('0.00');
+  const [depositValue, setDepositValue] = useState('0.1');
+  const [scholarshipIdToView, setScholarshipIdToView] = useState('1'); // ID for the bottom view
+  const [fetchedApplications, setFetchedApplications] = useState([]); // List for the bottom table
+  const [loading, setLoading] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  // ---------------------------
+
   //Create public Client for reading only
   const publicClient = createPublicClient({
-                                          chain: hardhat,
-                                          // chain:hoodi,
+                                          // chain: hardhat,
+                                          chain:hoodi,
                                           transport: http(),   // http://127.0.0.1:8545 by default
                                           // transport:custom(window.ethereum)
                                       });
 
   // Create wallet client
   const client = createWalletClient({
-                      chain: hardhat,
-                      // chain:hoodi,
+                      // chain: hardhat,
+                      chain:hoodi,
                       transport: custom(window.ethereum),
                     });
 
   // Connect Metamask
   async function connectWallet() {
 
-    const [address] = await client.requestAddresses();    
-    setAddr(address);
-    console.log(address);
-    alert("Metamask connected");    
-  }
-  
+    setLoading(true);
+    try {
+      const [address] = await client.requestAddresses();    
+      setAddr(address);
+      setAlertMessage("Metamask connected successfully!");
+      // Fetch initial balance after connection
+      await fetchContractBalance();
+
+    } catch (error) {
+      setAlertMessage("Failed to connect wallet.");
+      console.error("Wallet connection error:", error);      
+    }finally {
+        setLoading(false);
+    }       
+  }  
   //form for adding scholarship
   const [form, setForm] = useState({
                                     title: '',
@@ -64,36 +85,52 @@ const AdminDashboard = () => {
   }
    // Add scholarship
   async function addScholarship() {
-    
-    const amount = Number(form.amount);
-    const minScore = Number(form.minScore);
-    const seats = Number(form.totalSeats);
-    const attendance = Number(form.requiredAttendance);
-    const academic = Number(form.requiredAcademic);
 
-    const txhash = await writeContract(client, {
-                        address: scholarship.ContractAddress,
-                        abi: scholarship.abi,
-                        functionName: "addScholarship",
-                        args: [
-                                form.title,
-                                amount,
-                                minScore,
-                                seats,
-                                attendance,
-                                academic
-                              ],
-                        account: addr,
-                      });
+    if(!addr) {
+        setAlertMessage("Please connect your wallet first.");
+        return;
+    }
+    setLoading(true);
+    try {
 
-    console.log("Scholarship Added:", txhash);
-    alert("Scholarship Added Successfully!");
+      const amount = BigInt(Number(form.amount)); // Use BigInt for uint256
+      const minScore = Number(form.minScore);
+      const seats = Number(form.totalSeats);
+      const attendance = Number(form.requiredAttendance);
+      const academic = Number(form.requiredAcademic);
+
+      const txhash = await writeContract(client, {
+                            address: scholarship.ContractAddress,
+                            abi: scholarship.abi,
+                            functionName: "addScholarship",
+                            args: [
+                                    form.title,
+                                    amount,
+                                    minScore,
+                                    seats,
+                                    attendance,
+                                    academic
+                                ],
+                            account: addr,
+                        });
+
+        console.log("Scholarship Added:", txhash);
+        setAlertMessage("Scholarship Added Successfully! TX: " + txhash);
+        
+        // Wait for confirmation and refresh list
+        await waitForTransactionReceipt(publicClient, { hash: txhash });
+        await loadScholarships().then(setAvailableScholarships);
+    } catch (error) {
+      console.error("Error adding scholarship:", error);
+        setAlertMessage("Failed to add scholarship: " + error.message);
+    } finally {
+        setLoading(false);      
+    }   
   }  
 
 /************************************************* */
 {/*//loading Scholarship */}
-//for fetching the scholarshp count 
-  
+//for fetching the scholarshp count   
 
   const fetchCounter = async () => {        
         try {
@@ -106,12 +143,11 @@ const AdminDashboard = () => {
                             // return Number(data);
             const count = Number(data);      
             setCounter(count);
-
             return count;
 
         } catch (error) {
             console.error("Error fetching scholarshipCounter:", error);
-            setErrors(["Failed to fetch"])
+            setErrors(["Failed to fetch"])  // to removed setErrors state
         }
     };   
     const loadScholarships = async () => {
@@ -133,8 +169,8 @@ const AdminDashboard = () => {
                                 functionName: "scholarships",
                                 args: [i],
                             });
-                
-                if(res[7]==true){
+                  // res is the Scholarship struct 
+                // if(res[7]==true){
                     list.push({
                         id:Number(res[0]),
                         name:res[1],
@@ -145,8 +181,8 @@ const AdminDashboard = () => {
                         markReq:res[6],
                         isActive:res[7],
                         isProcessed:res[8]
-                    })
-                }                 
+                    });
+                // }                 
             }    
           console.log("scholarship details",list);   
 
@@ -158,11 +194,11 @@ const AdminDashboard = () => {
             console.error("Error loading scholarships:", err);
             setErrors(["Failed to load scholarships"]);
         }
-    };
+    };    
     
-    
-//*******************************//
+//***************************************//
 //for loading All Scholarship Applicants   
+//***************************************//
 
   const loadAllScholarshipApplicants = async () => {
 
@@ -180,73 +216,214 @@ const AdminDashboard = () => {
                                       address:scholarship.ContractAddress,
                                       abi:scholarship.abi,
                                       functionName:"getApplications",//???getApplication
-                                      args:[schID] //scholarship_id,
+                                      args:[BigInt(schID)] //scholarship_id in BigInt,
                                     });
         console.log("applicant details",apps);       /// displaying>>>
         console.log("apps.length",apps.length);    
         // loop through the returned array and structure the data
         for(let i=0;i<apps.length;i++){
           const app = apps[i];
+
+          // console.log(typeof(app));      
+          // console.log("app",app);   
+          // Map array tuple to object (using original struct indices for clarity)      
+
           allApplicants.push({
                               scholarshipId:schID,
-                              applicantIndex:app[0],
-                              studentName:app[1],
-                              regNumber:app[2],
-                              college: app[3],
-                              course: app[4],
-                              attendancePercent: Number(app[5]), // index 5
-                              academicMark: Number(app[6]),      // index 6
-                              score: Number(app[7]),             // index 7
-                              received: app[8]
+                              applicantIndex:i+1,
+                              address:app.applicant,
+                              studentName:app.studentName,
+                              regNumber:app.regNumber,
+                              college: app.college,
+                              course: app.course,
+                              attendancePercent: Number(app.attendancePercent), // index 5
+                              academicMark: Number(app.academicMark),      // index 6
+                              score: Number(app.score),             // index 7
+                              received: app.received
+
                             });
         }
       }
-      console.log(allApplicants,'all applicants');      
+      console.log('all applicants',allApplicants);      
       return allApplicants;
     } catch (err) {
       console.error(err);
+      return[];
     }
   }; 
 //************************************ */
-// Selection and Disbursement
+// Processing  Scholarship (Selection and Disbursement)
+//check function for scholarship 1-active or not;
+                                //2-alreadry processed or not
+                            //3-sorting the application
+                            //4-selecting top students
+                            //5-Disbursing to the selected students
+                            //PROCESS SCHOLARSHIP (SORT, SELECT, DISBURSE)
+//***************************** */
+ // Fetch the native ETH balance of the contract
+  async function fetchContractBalance() {
+    try {
+      const bal=await getBalance(publicClient,
+                                {
+                                  address:scholarship.ContractAddress
+                                }
+                              );
+      setBalance(formatEther(bal));
+
+    } catch (error) {
+      console.error("Error fetching contract balance:", err);
+      setBalance('Error');
+   }  
+  }
+
+    // to deposit ETH to the contract
+  async function depositToContract() {
+    if(!addr){
+      setAlertMessage('Connect wallet first.');
+      return;
+    }
+    setLoading(true);
+    try{
+      const value=parseEther(depositValue);
+      setAlertMessage(`Sending ${depositValue} ETH`);
+      
+      const txHash = await sendTransaction(client,
+                                            {
+                                              to:scholarship.ContractAddress,
+                                              value,
+                                              account:addr
+                                            }
+                                          );
+      await waitForTransactionReceipt(publicClient,
+                                      {
+                                        hash:txHash
+                                      }
+                                    );
+      setAlertMessage("Deposit Successfully");
+      fetchContractBalance();// refresh balance
+    }catch (error){
+      console.error("Deposit failed",error);
+      setAlertMessage(`Deposit failed:`+(error.shortMessage ||error.Message));     
+    }finally{
+      setLoading(false);
+    }    
+  }
+
+  // Fetching and sorting applications for a single ID (for the bottom table)
+//*************************************************************************** */
+  async function fetchApplicationsById() {
+    if(!scholarshipIdToView){
+      return setAlertMessage("Enter scholarship Id");
+    }
+    setLoading(true);
+    setFetchedApplications([]);
+    try {
+
+      setAlertMessage(`Fetching applications for ID ${scholarshipIdToView}`);  
+      const schId = BigInt(Number(scholarshipIdToView));    
+
+      const apps = await readContract(publicClient, 
+                                      {
+                                        address: scholarship.ContractAddress,
+                                        abi: scholarship.abi,
+                                        functionName: 'getApplications',
+                                        args: [schId],
+                                      });
+       const normalized = apps.map((a) => (
+                                            {
+                                              applicant: a[0],
+                                              studentName: a[1],
+                                              college: a[3],
+                                              score: Number(a[7]),
+                                              received: a[8],
+                                            }
+                                          ));    
+      // sorting score by descending
+      normalized.sort((x,y)=>y.score-x.score);
+      setFetchedApplications(normalized);
+      setAlertMessage(`Found ${normalized.length} applications for ID 
+                              ${scholarshipIdToView}.`);                      
+    } catch (error) {
+      console.error("Failed to fetch applications:", err);
+      setAlertMessage('Failed to fetch applications. Check ID or network.');
+    } finally {
+      setLoading(false);
+    }    
+  }
+
+  //Selection and Disbursement
+  //selectTopApplicants` function on the contract.
+  //************************** */
+   
   async function processScholarship(){
     if(!addr){
-      alert("Connect to Metamask Wallet");
+      setAlertMessage("Connect to Metamask Wallet");
       return;
     }
-    const idToProcess=Number(processId);
+    const idToProcess=Number(scholarshipIdToView);
+    
     if(!idToProcess||idToProcess<=0){
-      alert("Enter a valid Scholarship Id to process");
+      setAlertMessage("Enter a valid Scholarship Id to process");
       return;
     }
+     //before disbursing check contract has fund
+    if (balance === '0.00' || balance === 'Error') {
+      setAlertMessage("Contract balance is null, deposit!!.");
+      return;
+    }
+    setLoading(true);
+    setAlertMessage(`Processing for scholarshipID:${idToProcess}`);
+
     try {
+      const schID=BigInt(idToProcess);
       // admin call the sorting and disbursement function
       const txhash=await writeContract(client,{
-                                address:scholarship.ContractAddress,
-                                abi:scholarship.abi,
-                                functionName:"selectTopApplicants",
-                                args:[idToProcess],
-                                account:addr,
-                              });
+                                                address:scholarship.ContractAddress,
+                                                abi:scholarship.abi,
+                                                functionName:"selectTopApplicants",
+                                                args:[idToProcess],
+                                                account:addr,
+                                              });
+      
+
        //Check transaction:txhash and the contract must be funded with Ether 
        // for the transfers to succeed!`      
       console.log("Scholarship processing initiated",txhash);
-      alert(`Processing starts for the Id:${idToProcess} and the transaction is:${txhash}`)
+      setAlertMessage(`Processing starts for the Id:${idToProcess} 
+                          and the transaction is:${txhash}`)
+      
+      await waitForTransactionReceipt(publicClient,{
+                                                    hash:txhash
+                                                  });
+      setAlertMessage(`SUCCESS! Scholarship ID ${idToProcess} 
+                        processed and funds disbursed.`);
 
       //refresh all data after processing
-      setTimeout(async()=>{
-        await loadScholarships().then(setAvailableScholarships);
-        await loadAllScholarshipApplicants().then(setAllApplicants);
-      },5000) // to wait for transaction to confirm
+      await fetchContractBalance();
+      await fetchApplicationsById(); 
+
+      //refresh the main dashboard lists asynchronously
+      loadScholarships().then(setAvailableScholarships);
+      loadAllScholarshipApplicants().then(setAllApplicants);
+
+      // setTimeout(async()=>{
+      //   await loadScholarships().then(setAvailableScholarships);
+      //   await loadAllScholarshipApplicants().then(setAllApplicants);
+      // },5000) // to wait for transaction to confirm
       
     } catch (error) {
       console.error("error processing Scholarship",error);
-      alert("failed to process Scholarship")            
+      setAlertMessage("failed to process Scholarship",error.message)            
+    }finally{
+      setLoading(false);
     }
   }
-  /// initial data load efffect 
+  /// initial data load efffect (useEffect)
   useEffect(() => {    
       const fetchData= async ()=>{
+        
+        //for fetching contract balance on mounting
+        await fetchContractBalance();
         // for loading Scholarships
         const schDetails= await loadScholarships();
         setAvailableScholarships(schDetails);  
@@ -256,7 +433,9 @@ const AdminDashboard = () => {
         setAllApplicants(applicants);
       }   
       fetchData();     
-    }, []);
+    }, [addr]); 
+    // dependenct array: address to refetch data once  connected
+///*********************************************************** */
 
   return (
     <>
@@ -462,15 +641,103 @@ const AdminDashboard = () => {
         }       
       </div>
 
-      {/* selecting, sorting and paying */}
-      <div className="m-5">
+      {/* Depositing, fetching Id , Selecting, Sorting and Processing */}
+      {/* <div className="m-5">
         <button
           // onClick={processScholarship}
           className="bg-purple-600 text-white p-2 rounded"
         >
           Process Scholarship
         </button>
+      </div> */}
+      <div className="bg-white p-6 border border-gray-200 
+                      rounded-xl shadow-lg mb-8 mx-8">
+        <h2 className="font-bold text-2xl text-gray-800 mb-4 border-b pb-2">
+          Processing Scholarship & Disbursing
+        </h2>  
+        {/**Deposit Section */}
+        <div>
+          <div className="mb-6 p-4 border rounded">
+            <div className="mb-2">Contract balance: 
+                                  {/* <strong>{balance} ETH</strong> */}
+            </div>
+            <div className="flex items-center gap-2">
+              <input className="p-2 border rounded" 
+                      // value={depositValue} 
+                      // onChange={(e)=>setDepositValue(e.target.value)} 
+              />
+              <button 
+                // onClick={depositToContract} 
+                // disabled={loading} 
+                className="px-3 py-2 rounded bg-green-600 text-white"
+              >
+                Deposit to contract
+              </button>
+            </div>
+            <div className="text-sm text-gray-600 mt-2">
+              {/* This sends native ETH to the contract address using the connected wallet. */}
+              Sending eth to the contract usng wallet
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="mb-4 p-4 border rounded">
+            <label className="block mb-2">Scholarship ID</label>
+            <input 
+                  // value={scholarshipId} 
+                  // onChange={(e)=>setScholarshipId(e.target.value)} 
+                  className="p-2 border rounded w-24" 
+            />
+            <div className="mt-3 flex gap-2">
+              <button 
+                    // onClick={fetchApplications} 
+                    className="px-3 py-2 rounded bg-indigo-600 text-white"
+              >
+                Fetch Applications
+              </button>
+              <button 
+                    // onClick={callSelectTopApplicants} 
+                    className="px-3 py-2 rounded bg-red-600 text-white"
+              >
+                      selectTopApplicants (admin)
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+      {/** Application sorted by score */}
+
+      <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-lg mb-8 mx-8">
+        <h2 className="text-xl font-semibold">Applications (sorted by score)</h2>
+
+        {/* {loading ? <div>Loading...</div> : ( */}
+
+          <table className="w-full table-auto mt-2 border-collapse">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="py-2">#</th>
+                <th>Name</th>
+                <th>Score</th>
+                <th>Received</th>
+                <th>Applicant</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* {
+              applications.map((a, idx) => (
+                <tr key={idx} className="border-b">
+                  <td className="py-2">{idx+1}</td>
+                  <td>{a.studentName} ({a.college})</td>
+                  <td>{a.score}</td>
+                  <td>{a.received ? 'Yes' : 'No'}</td>
+                  <td className="text-sm">{a.applicant}</td>
+                </tr>
+              ))
+              } */}
+            </tbody>
+          </table>
+        {/* )} */}
+      </div>      
     </>
   );
 };

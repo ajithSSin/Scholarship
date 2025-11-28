@@ -157,7 +157,8 @@ contract scholarship {
         s.isProcessed = true;
     }
 
-    function _disburse(address _student, uint256 _amount) internal {
+    function _disburse(address _student, uint256 _amount) 
+                        internal {
         require(address(this).balance >= _amount, "Insufficient contract balance");
         (bool sent, ) = _student.call{value: _amount}("");
         require(sent, "Transfer failed");
