@@ -185,15 +185,16 @@ const ApplyFormpage = () => {
             <div className='bg-gray-200'>
                 <Header/>
                 <div className="flex justify-between">
-                        <ButtonBack/>
-                        {/* metatmask connection */}
-                        <button
+                    <ButtonBack/>
+
+                    {/* metatmask connection */}
+                    <button
                           onClick={connectWallet}
                           className="bg-blue-500 text-white p-2 rounded mx-3"
-                        >
-                          Connect MetaMask
-                        </button>
-                    </div>  
+                    >
+                        Connect MetaMask
+                    </button>
+                </div>  
 
                 <div className="mx-auto max-w-2xl mt-6 p-6 
                       shadow-2xl rounded-2xl

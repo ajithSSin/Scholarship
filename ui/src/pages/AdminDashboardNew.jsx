@@ -10,7 +10,13 @@ import {
         from "viem";
 
 import { hardhat, hoodi } from "viem/chains";
-import { getBalance, readContract, sendTransaction, waitForTransactionReceipt, writeContract } from "viem/actions";
+import { 
+        getBalance, 
+        readContract, 
+        sendTransaction, 
+        waitForTransactionReceipt, 
+        writeContract 
+      } from "viem/actions";
 
 import scholarship from "../assets/Scholarship.json"
 import ButtonBack from "../components/ButtonBack";
@@ -24,7 +30,6 @@ const AdminDashboard = () => {
   const [availableScholarships, setAvailableScholarships] = useState([]);
   const [allApplicants,setAllApplicants]=useState([]);
 
-  // --- NEW STATE ADDITIONS ---
   const [balance, setBalance] = useState('0.00');
   const [depositValue, setDepositValue] = useState('0.1');
   const [scholarshipIdToView, setScholarshipIdToView] = useState('1'); // ID for the bottom view
@@ -128,9 +133,9 @@ const AdminDashboard = () => {
     }   
   }  
 
-/************************************************* */
-{/*//loading Scholarship */}
-//for fetching the scholarshp count   
+
+{/*//loading Scholarship 
+//for fetching the scholarshp count   */}
 
   const fetchCounter = async () => {        
         try {
@@ -218,8 +223,8 @@ const AdminDashboard = () => {
                                       functionName:"getApplications",//???getApplication
                                       args:[BigInt(schID)] //scholarship_id in BigInt,
                                     });
-        console.log("applicant details",apps);       /// displaying>>>
-        console.log("apps.length",apps.length);    
+        // console.log("applicant details",apps);       /// displaying>>>
+        // console.log("apps.length",apps.length);    
         // loop through the returned array and structure the data
         for(let i=0;i<apps.length;i++){
           const app = apps[i];
@@ -260,7 +265,7 @@ const AdminDashboard = () => {
                             //5-Disbursing to the selected students
                             //PROCESS SCHOLARSHIP (SORT, SELECT, DISBURSE)
 //***************************** */
- // Fetch the native ETH balance of the contract
+  // Fetch the native ETH balance of the contract
   async function fetchContractBalance() {
     try {
       const bal=await getBalance(publicClient,
@@ -276,10 +281,10 @@ const AdminDashboard = () => {
    }  
   }
 
-    // to deposit ETH to the contract
+  // to deposit ETH to the contract
   async function depositToContract() {
     if(!addr){
-      setAlertMessage('Connect wallet first.');
+      setAlertMessage('Connect wallet');
       return;
     }
     setLoading(true);
@@ -288,12 +293,12 @@ const AdminDashboard = () => {
       setAlertMessage(`Sending ${depositValue} ETH`);
       
       const txHash = await sendTransaction(client,
-                                            {
-                                              to:scholarship.ContractAddress,
-                                              value,
-                                              account:addr
-                                            }
-                                          );
+                                          {
+                                            to:scholarship.ContractAddress,
+                                            value,
+                                            account:addr
+                                          }
+                                        );
       await waitForTransactionReceipt(publicClient,
                                       {
                                         hash:txHash
@@ -385,9 +390,8 @@ const AdminDashboard = () => {
                                                 account:addr,
                                               });
       
-
-       //Check transaction:txhash and the contract must be funded with Ether 
-       // for the transfers to succeed!`      
+      //Check transaction:txhash and the contract must be funded with Ether 
+      // for the transfers to succeed!`      
       console.log("Scholarship processing initiated",txhash);
       setAlertMessage(`Processing starts for the Id:${idToProcess} 
                           and the transaction is:${txhash}`)
@@ -407,9 +411,9 @@ const AdminDashboard = () => {
       loadAllScholarshipApplicants().then(setAllApplicants);
 
       // setTimeout(async()=>{
-      //   await loadScholarships().then(setAvailableScholarships);
-      //   await loadAllScholarshipApplicants().then(setAllApplicants);
-      // },5000) // to wait for transaction to confirm
+      //    await loadScholarships().then(setAvailableScholarships);
+      //    await loadAllScholarshipApplicants().then(setAllApplicants);
+      //  },5000) // to wait for transaction to confirm
       
     } catch (error) {
       console.error("error processing Scholarship",error);
