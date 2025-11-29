@@ -19,16 +19,16 @@ const ApplyFormpage = () => {
     
     //Create public Client for reading only
     const publicClient = createPublicClient({
-                                        // chain: hardhat,
-                                        chain:hoodi,
+                                        chain: hardhat,
+                                        // chain:hoodi,
                                         transport: http(),   // http://127.0.0.1:8545 by default
                                         // transport:custom(window.ethereum)
                                     });
     
     // Create wallet Client writing +metamask connection
     const walletClient=createWalletClient({
-                                    // chain:hardhat,
-                                    chain:hoodi,
+                                    chain:hardhat,
+                                    // chain:hoodi,
                                     transport:custom(window.ethereum)
                                 });   
     // Connect Metamask

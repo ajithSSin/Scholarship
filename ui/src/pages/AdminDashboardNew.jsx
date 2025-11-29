@@ -24,7 +24,7 @@ import Header from "../components/Header";
 import ScholarshipDapp from "./Selection";
 
 const AdminDashboard = () => {
-  const [addr, setAddr] = useState(null);
+  const [addr, setAddr] = useState();// rechk req!!
   
   const [counter, setCounter] = useState(0);
   const [availableScholarships, setAvailableScholarships] = useState([]);
@@ -133,7 +133,6 @@ const AdminDashboard = () => {
     }   
   }  
 
-
 {/*//loading Scholarship 
 //for fetching the scholarshp count   */}
 
@@ -155,7 +154,8 @@ const AdminDashboard = () => {
             setErrors(["Failed to fetch"])  // to removed setErrors state
         }
     };   
-    const loadScholarships = async () => {
+
+  const loadScholarships = async () => {
         try {
             const count = await fetchCounter();  // reuse counter function      
             // console.log("Load Scholarship count",count);                            
@@ -334,15 +334,28 @@ const AdminDashboard = () => {
                                         functionName: 'getApplications',
                                         args: [schId],
                                       });
-       const normalized = apps.map((a) => (
+      // console.log(schId,"=schId");
+      // console.log("apps fetched fromchain ",apps);
+      // console.log(typeof(apps));
+      // console.log("break");                
+      
+      const normalized = apps.map((a) => (
                                             {
-                                              applicant: a[0],
-                                              studentName: a[1],
-                                              college: a[3],
-                                              score: Number(a[7]),
-                                              received: a[8],
+                                              // applicant: a[0],
+                                              // studentName: a[1],
+                                              // college: a[3],
+                                              // score: Number(a[7]),
+                                              // received: a[8],
+                                              applicant:a.applicant,
+                                              studentName:a.studentName,                                              
+                                              college:a.college,
+                                              score:a.score,
+                                              received:a.received
                                             }
-                                          ));    
+                                          )); 
+      // console.log("normalised", normalized);
+      // console.log(typeof(normalized));
+                                                        
       // sorting score by descending
       normalized.sort((x,y)=>y.score-x.score);
       setFetchedApplications(normalized);
@@ -435,6 +448,7 @@ const AdminDashboard = () => {
         //for loading all Applicants for Scholarships      
         const applicants= await loadAllScholarshipApplicants();   
         setAllApplicants(applicants);
+
       }   
       fetchData();     
     }, [addr]); 
@@ -734,21 +748,27 @@ const AdminDashboard = () => {
             </thead>
             <tbody>
               {
-              fetchedApplications.length > 0 ? (
-                fetchedApplications.map((a, idx) => (
-                  <tr key={idx} className="border-b hover:bg-gray-50">
-                    <td className="py-2 px-2 font-bold">{idx+1}</td>
-                    <td className="py-2 px-2">{a.studentName} ({a.college})</td>
-                    <td className="py-2 px-2 text-center">{a.score}</td>
-                    <td className="py-2 px-2 text-center">{a.received ? '✅' : '❌'}</td>
-                    <td className="py-2 px-2 text-xs">{a.applicant}</td>
+                fetchedApplications.length > 0 ? (
+                  fetchedApplications.map((a, idx) => (
+                    <tr key={idx} className="border-b hover:bg-gray-50">
+                      <td className="py-2 px-2 font-bold">{idx+1}</td>
+                      <td className="py-2 px-2">{a.studentName} ({a.college})</td>
+                      <td className="py-2 px-2 text-center">{a.score}</td>
+                      <td className="py-2 px-2 text-center">{a.received ? '✅' : '❌'}</td>
+                      <td className="py-2 px-2 text-xs">{a.applicant}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" 
+                          className="py-4 text-center text-gray-500">
+                      {
+                        scholarshipIdToView ? `No applications found for ID ${scholarshipIdToView}.` 
+                                        : 'Fetch applications using the ID above.'
+                      }
+                    </td>
                   </tr>
-                ))
-              ) : (
-                <tr><td colSpan="5" className="py-4 text-center text-gray-500">
-                    {scholarshipIdToView ? `No applications found for ID ${scholarshipIdToView}.` : 'Fetch applications using the ID above.'}
-                </td></tr>
-              )
+                )
               }
             </tbody>
           </table>
